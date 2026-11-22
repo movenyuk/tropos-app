@@ -517,14 +517,18 @@ let planState = { route: null, calc: { volume: '40', before: '30', after: '15' }
 
 function tgUser() { return inTG && tg.initDataUnsafe && tg.initDataUnsafe.user ? tg.initDataUnsafe.user : null; }
 /* id подписчика Chatplace: приходит в ссылке t.me/tropossbot?startapp=<id> (или ?cid=<id>) */
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+/* start_param вида <id>__quiz / <id>__guide: id подписчика + куда открыть */
+let START_GOAL = '';
 function getCid() {
   const cands = [];
-  try { cands.push(new URLSearchParams(location.search).get('cid')); } catch (e) {}
-  try { cands.push(new URLSearchParams(location.search).get('tgWebAppStartParam')); } catch (e) {}
+  try { const q = new URLSearchParams(location.search); cands.push(q.get('cid'), q.get('tgWebAppStartParam')); } catch (e) {}
   if (tg && tg.initDataUnsafe) cands.push(tg.initDataUnsafe.start_param);
-  const found = cands.find(c => c && UUID_RE.test(c));
-  if (found) { store('tp_cid', found); return found; }
+  const raw = cands.find(c => c && UUID_RE.test(c));
+  if (raw) {
+    const id = raw.match(UUID_RE)[0]; START_GOAL = (raw.split('__')[1] || '').toLowerCase();
+    store('tp_cid', id); return id;
+  }
   return store('tp_cid') || '';
 }
 const CID = getCid();
@@ -796,7 +800,12 @@ if (inTG) {
   tg.BackButton.onClick(() => history.back());
 }
 /* Повторный вход: если план уже собран — сразу открываем его */
-if (!location.hash && store('tp_answers') && QUIZ.every(k => state.answers[k]) && state.contact.phone) location.replace('#/plan');
+if (!location.hash) {
+  const planDone = QUIZ.every(k => state.answers[k]) && state.contact.phone;
+  if (planDone && START_GOAL !== 'guide') location.replace('#/plan');
+  else if (START_GOAL === 'quiz') location.replace('#/quiz');
+  else if (START_GOAL === 'guide' && state.contact.phone) location.replace('#/guide');
+}
 route();
 
 </script>
